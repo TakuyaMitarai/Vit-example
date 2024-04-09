@@ -23,8 +23,6 @@ from tqdm.notebook import tqdm
 
 from vit_pytorch.efficient import ViT
 
-print(f"Torch: {torch.__version__}")
-
 # Training settings
 batch_size = 64
 epochs = 20
@@ -51,30 +49,13 @@ test_dir = 'data/test'
 train_list = glob.glob(os.path.join(train_dir,'*.jpg'))
 test_list = glob.glob(os.path.join(test_dir, '*.jpg'))
 
-print(f"Train Data: {len(train_list)}")
-print(f"Test Data: {len(test_list)}")
-
 labels = [path.split('/')[-1].split('.')[0] for path in train_list]
 
-random_idx = np.random.randint(1, len(train_list), size=9)
-fig, axes = plt.subplots(3, 3, figsize=(16, 12))
-
-for idx, ax in enumerate(axes.ravel()):
-    img = Image.open(train_list[idx])
-    ax.set_title(labels[idx])
-    ax.imshow(img)
-
-plt.savefig('sample_images_grid.png', dpi=300)
-plt.close()  # plt.show() の代わりに、図を閉じる
 
 train_list, valid_list = train_test_split(train_list, 
                                           test_size=0.2,
                                           stratify=labels,
                                           random_state=seed)
-
-print(f"Train Data: {len(train_list)}")
-print(f"Validation Data: {len(valid_list)}")
-print(f"Test Data: {len(test_list)}")
 
 train_transforms = transforms.Compose(
     [
@@ -117,7 +98,7 @@ class CatsDogsDataset(Dataset):
         img_transformed = self.transform(img)
 
         label = img_path.split("/")[-1].split(".")[0]
-        label = 1 if label == "train\dog" else 0 #ここを書換えてください
+        label = 1 if label == "dog" else 0
 
         return img_transformed, label
 
@@ -129,42 +110,32 @@ train_loader = DataLoader(dataset = train_data, batch_size=batch_size, shuffle=T
 valid_loader = DataLoader(dataset = valid_data, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(dataset = test_data, batch_size=batch_size, shuffle=True)
 
-print(len(train_data), len(train_loader))
-print(len(valid_data), len(valid_loader))
-
-#efficient_transformer = Linformer(
-#    dim=128,
-#    seq_len=49+1,  # 7x7 patches + 1 cls-token
-#    depth=12,
-#    heads=8,
-#    k=64
-#)
-
 model = timm.create_model('vit_small_patch16_224', pretrained=True, num_classes=2)
 model.to("cuda:0")
 
+#efficient_transformer = Linformer(
+#   dim=128,
+#    seq_len=49+1,  # 7x7 patches + 1 cls-token
+#   depth=12,
+#   heads=8,
+#   k=64
+#)
+
 #model = ViT(
-#    dim=128,
-#    image_size=224,
-#    patch_size=32,
-#    num_classes=2,
+#   dim=128,
+#   image_size=224,
+#   patch_size=32,
+#   num_classes=2,
 #    transformer=efficient_transformer,
-#    channels=3,
+#   channels=3,
 #).to(device)
 
 # loss function
 criterion = nn.CrossEntropyLoss()
 # optimizer
-optimizer = optim.Adam(model.parameters(), lr=lr)
+ptimizer = optim.Adam(model.parameters(), lr=lr)
 # scheduler
 scheduler = StepLR(optimizer, step_size=1, gamma=gamma)
-
-##ここを追記↓##
-train_acc_list = []
-val_acc_list = []
-train_loss_list = []
-val_loss_list = []
-##############
 
 for epoch in range(epochs):
     epoch_loss = 0
@@ -202,59 +173,3 @@ for epoch in range(epochs):
     print(
         f"Epoch : {epoch+1} - loss : {epoch_loss:.4f} - acc: {epoch_accuracy:.4f} - val_loss : {epoch_val_loss:.4f} - val_acc: {epoch_val_accuracy:.4f}\n"
     )
-
-##ここを追記↓##
-    train_acc_list.append(epoch_accuracy)
-    val_acc_list.append(epoch_val_accuracy)
-    train_loss_list.append(epoch_loss)
-    val_loss_list.append(epoch_val_loss)
-
-
-#出力したテンソルのデバイスをCPUへ切り替える
-device2 = torch.device('cpu')
-
-train_acc = []
-train_loss = []
-val_acc = []
-val_loss = []
-
-for i in range(epochs):
-    train_acc2 = train_acc_list[i].to(device2)
-    train_acc3 = train_acc2.clone().numpy()
-    train_acc.append(train_acc3)
-    
-    train_loss2 = train_loss_list[i].to(device2)
-    train_loss3 = train_loss2.clone().detach().numpy()
-    train_loss.append(train_loss3)
-    
-    val_acc2 = val_acc_list[i].to(device2)
-    val_acc3 = val_acc2.clone().numpy()
-    val_acc.append(val_acc3)
-    
-    val_loss2 = val_loss_list[i].to(device2)
-    val_loss3 = val_loss2.clone().numpy()
-    val_loss.append(val_loss3)
-
-#取得したデータをグラフ化する
-sns.set()
-num_epochs = epochs
-
-fig = plt.subplots(figsize=(12, 4), dpi=80)
-
-ax1 = plt.subplot(1,2,1)
-ax1.plot(range(num_epochs), train_acc, c='b', label='train acc')
-ax1.plot(range(num_epochs), val_acc, c='r', label='val acc')
-ax1.set_xlabel('epoch', fontsize='12')
-ax1.set_ylabel('accuracy', fontsize='12')
-ax1.set_title('training and val acc', fontsize='14')
-ax1.legend(fontsize='12')
-
-ax2 = plt.subplot(1,2,2)
-ax2.plot(range(num_epochs), train_loss, c='b', label='train loss')
-ax2.plot(range(num_epochs), val_loss, c='r', label='val loss')
-ax2.set_xlabel('epoch', fontsize='12')
-ax2.set_ylabel('loss', fontsize='12')
-ax2.set_title('training and val loss', fontsize='14')
-ax2.legend(fontsize='12')
-plt.savefig('training_validation_graph.png')
-
